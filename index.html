@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Tycoon Militaire</title>
 <meta name="description" content="Bâtis ton armée, défends ta base, pilote jeeps, chars, hélicos et avions de chasse, envahis les îles ennemies… jusqu'à la bombe nucléaire. Gratuit, sur téléphone et ordinateur.">
 <meta name="theme-color" content="#0d120a">
@@ -85,6 +85,8 @@ body.tourne .jeu {
 body.tourne.inverse .jeu { transform: translateY(var(--l)) rotate(-90deg); }
 
 [hidden] { display: none !important; }
+/* pas de zoom de la page au double toucher (le décor et les boutons du pouce gardent « none ») */
+*, *::before, *::after { touch-action: manipulation; }
 html, body { height: 100%; }
 body {
   margin: 0;
@@ -1974,6 +1976,7 @@ body.en-architecte .pouvoirs, body.en-architecte .etiquettes { visibility: hidde
 .etat-transfert[data-genre="non"] { color: #ff8a7a; }
 body.bas .carte-transfert .info { font-size: 13px; }
 body.bas .zone-code { min-height: 44px; }
+body[data-tactile="true"] .zone-code, body[data-tactile="true"] select { font-size: 16px; }
 
 /* ---------- couleurs pour daltoniens (33-confort.js) : le vert devient bleu, le rouge orange ---------- */
 body[data-daltonien="true"] { --ok: #5fb4ff; --vie: #5fb4ff; --hostile: #ffa033; }
@@ -10032,6 +10035,41 @@ function majAideTir() {
 function actionE() {
   if (typeof vehiculePilote === 'function' && vehiculePilote()) descendreVehicule();
   else utiliserInteraction();
+}
+
+// ---------- pas de zoom du navigateur (surtout Safari sur iPhone et iPad) ----------
+// En jouant, les deux pouces bougent en même temps (joystick + visée) : Safari y voit un
+// « pincement » et agrandit la page, et un double toucher sur un bouton fait pareil. Comme le
+// décor (la toile du jeu) garde tous les gestes pour lui, on ne pouvait plus dézoomer.
+// Le jeu lit les doigts avec les « pointeurs » : bloquer les gestes de la page ne le gêne pas.
+//   1. deux doigts qui bougent ou un geste de pincement : la page ne zoome pas ;
+//   2. double toucher : « touch-action: manipulation » partout (style.css) ;
+//   3. si la page est quand même agrandie (ancien navigateur…), on la remet à sa taille.
+for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(type, (ev) => ev.preventDefault(), { passive: false });
+}
+document.addEventListener('touchmove', (ev) => {
+  if (ev.touches.length > 1 && ev.cancelable) ev.preventDefault();
+}, { passive: false });
+
+const VIEWPORT_SANS_ZOOM = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+let remiseEchelle = 0;
+function remettreEchelle() {
+  const vv = window.visualViewport;
+  if (!vv || vv.scale <= 1.02) return;
+  const maintenant = performance.now();
+  if (maintenant - remiseEchelle < 400) return;
+  remiseEchelle = maintenant;
+  // Safari se remet à l'échelle 1 quand le réglage de la page change : on le réécrit (deux
+  // versions qui veulent dire la même chose, pour qu'il y ait bien un changement)
+  const meta = document.querySelector('meta[name="viewport"]');
+  if (!meta) return;
+  const contenu = meta.getAttribute('content') === VIEWPORT_SANS_ZOOM ? VIEWPORT_SANS_ZOOM.replace('maximum-scale=1', 'maximum-scale=1.0') : VIEWPORT_SANS_ZOOM;
+  meta.setAttribute('content', contenu);
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', remettreEchelle);
+  window.visualViewport.addEventListener('scroll', remettreEchelle);
 }
 
 
