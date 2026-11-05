@@ -4692,7 +4692,6 @@ function creerProduit(atelier) {
   produits.push({ mesh, niveau: atelier.niveau, id: atelier.id, demi: GABARITS_PRODUITS[i].userData.demi, vy: 0, phase: 'chute', vie: 1 });
 }
 
-let dernierSonPiece = 0;
 function mettreAJourProduction(dt) {
   for (const a of ateliers) {
     const p = PRODUCTION[a.niveau - 1];
@@ -4718,12 +4717,9 @@ function mettreAJourProduction(dt) {
         p.phase = 'tremie';
         p.vy = 0;
         const gain = gagner(PRODUCTION[p.niveau - 1].valeur * multiplicateurBatiment(p.id) * facteurAteliers());
+        // (pas de son : le « gling » à chaque caisse vendue revenait sans arrêt ; comme dans Roblox,
+        //  les gains des ateliers sont silencieux)
         texteFlottant(new THREE.Vector3(pos.x + 2, pos.y + HAUTEUR_SOL + 2, pos.z), '+' + formatArgent(gain));
-        const maintenant = performance.now();
-        if (maintenant - dernierSonPiece > 90) {
-          dernierSonPiece = maintenant;
-          sons.piece();
-        }
       }
     } else {
       p.vy -= 40 * dt;
