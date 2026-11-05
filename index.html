@@ -10557,10 +10557,6 @@ const preferences = { sensibilite: 1, frequenceRaids: 180, jourNuit: true, meteo
 
 // ---------- boutique (tiroir) ----------
 let cartesAffichees = '';
-// Après un achat, la liste se refait et la carte suivante prend la place de celle qu'on vient
-// d'acheter : un double toucher (ou un doigt qui tremble) ne doit pas l'acheter aussi.
-const PAUSE_APRES_ACHAT = 450; // ms
-let dernierAchatCarte = -Infinity;
 const cartes = new Map(); // id -> { bouton, objet, abordable }
 // Les prochaines unités encore verrouillées (on montre ce qu'elles demandent).
 function prochainesVerrouillees() {
@@ -10587,12 +10583,11 @@ function rafraichirBoutique() {
     bouton.className = 'carte';
     bouton.innerHTML = `${symbole(o.categorie)}<span class="nom">${echapper(o.nom)}</span><span class="prix">${textePrix(o)}</span><span class="gain">${texteGain(o)}</span>`;
     bouton.setAttribute('aria-label', `${o.nom}, ${textePrix(o)}, ${texteGain(o)}`);
+    // (un toucher = un achat, sans pause : on peut tout acheter en tapant très vite ; la carte
+    //  suivante prend la place de celle qu'on vient d'acheter)
     bouton.addEventListener('click', () => {
-      if (performance.now() - dernierAchatCarte < PAUSE_APRES_ACHAT) return;
       sons.reveiller();
-      if (!acheter(o.id)) return;
-      dernierAchatCarte = performance.now();
-      if (!disponibles().length) fermerBoutique();
+      if (acheter(o.id) && !disponibles().length) fermerBoutique();
     });
     conteneur.append(bouton);
     cartes.set(o.id, { bouton, objet: o, abordable: null });
