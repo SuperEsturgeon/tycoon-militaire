@@ -10449,6 +10449,82 @@ function finPointeur(evBrut) {
 }
 toile.addEventListener('pointerup', finPointeur);
 toile.addEventListener('pointercancel', finPointeur);
+
+// ---------- le joystick ne doit jamais rester bloqué ----------
+// Si le signal « doigt levé » se perdait (notification ou centre de contrôle de l'iPhone, appel,
+// retour à l'accueil, capture d'écran, geste du bord de l'écran, doigt levé sur un panneau qui
+// vient de s'ouvrir…), le joystick restait actif : le personnage avançait sans fin, et les doigts
+// posés à gauche tournaient la caméra (il fallait relancer la page). Trois filets :
+//  1. un doigt levé n'importe où dans la page (pas seulement sur le décor) libère le joystick ;
+//  2. la page cachée ou quittée, l'écran tourné : tout est relâché ;
+//  3. l'écran dit combien de doigts sont vraiment posés : aucun → tout est relâché ; un seul,
+//     celui qu'on vient de poser → les autres doigts suivis étaient des fantômes ; et s'il est
+//     posé dans la zone du joystick, c'est lui qui prend le joystick.
+function relacherJoystick() {
+  if (!joystick.actif) return;
+  joystick.actif = false;
+  joystick.id = null;
+  entree.avant = 0;
+  entree.cote = 0;
+  entree.course = false;
+  montrerJoystick(false);
+  majClavier();
+}
+function relacherDoigt(id) {
+  if (joystick.actif && id === joystick.id) relacherJoystick();
+  if (regard && id === regard.id) regard = null;
+}
+function relacherCommandesTactiles() {
+  relacherJoystick();
+  regard = null;
+  pointeurs.clear();
+  geste = null;
+}
+for (const type of ['pointerup', 'pointercancel']) {
+  window.addEventListener(type, (ev) => relacherDoigt(ev.pointerId), true);
+}
+toile.addEventListener('lostpointercapture', (ev) => relacherDoigt(ev.pointerId));
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) relacherCommandesTactiles();
+});
+window.addEventListener('pagehide', relacherCommandesTactiles);
+window.addEventListener('blur', relacherCommandesTactiles);
+window.addEventListener('orientationchange', relacherCommandesTactiles);
+
+// (le doigt qu'on vient de poser, où que ce soit : l'événement « pointeur » arrive juste avant
+// l'événement « toucher » du même doigt)
+let dernierDoigtPose = null;
+window.addEventListener('pointerdown', (ev) => {
+  if (ev.pointerType === 'touch') dernierDoigtPose = { id: ev.pointerId, t: performance.now() };
+}, true);
+function verifierDoigts(ev) {
+  const n = ev.touches ? ev.touches.length : 0;
+  if (n === 0) {
+    relacherJoystick();
+    if (regard && !regard.souris) regard = null;
+    return;
+  }
+  if (ev.type !== 'touchstart' || n !== 1 || !dernierDoigtPose || performance.now() - dernierDoigtPose.t > 300) return;
+  // un seul doigt sur l'écran : celui qu'on vient de poser
+  const id = dernierDoigtPose.id;
+  if (joystick.actif && joystick.id !== id) relacherJoystick();
+  if (regard && !regard.souris && regard.id !== id) regard = null;
+  // (posé dans la zone du joystick, il a été pris pour la caméra parce que le joystick était
+  // bloqué par un fantôme : il devient le joystick)
+  if (regard && regard.id === id && !joystick.actif && modeVue !== 'ciel' && jeuActif() && zoneJoystick(regard.x0, regard.y0)) {
+    const r = regard;
+    regard = null;
+    joystick.actif = true;
+    joystick.id = id;
+    joystick.x0 = r.x0;
+    joystick.y0 = r.y0;
+    montrerJoystick(true);
+    majJoystick(r.x, r.y);
+  }
+}
+for (const type of ['touchstart', 'touchend', 'touchcancel']) {
+  window.addEventListener(type, verifierDoigts, { capture: true, passive: true });
+}
 toile.addEventListener('contextmenu', (ev) => ev.preventDefault());
 toile.addEventListener('wheel', (ev) => {
   ev.preventDefault();
